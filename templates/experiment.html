@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Amazon Alexa Reviews Analysis</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-image: linear-gradient(65deg, rgba(17,223,169,1) 0%, rgba(3,60,88,1) 49%, rgba(10,32,50,1) 100%);
+            margin: 0;
+            padding: 0;
+        }
+
+        main {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            color: black;
+            max-width: 600px;
+            padding: 20px;
+            background-color: rgb(8, 179, 165);
+            border-radius: 8px;
+            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        input[type="file"],
+        textarea {
+            width: calc(100% - 40px);
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: none;
+            font-size: 1rem;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #333;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #555;
+        }
+
+        #predictionResult,
+        #graphContainer {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            min-height: 50px;
+            text-align: left;
+        }
+
+        #downloadBtn {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <div class="container">
+            <h1>Text Sentiment Prediction</h1>
+            <form id="predictionForm">
+                <input type="file" id="csvFileInput" accept=".csv" />
+                <textarea id="textInput" placeholder="Enter text..." rows="6"></textarea>
+                <button type="button" onclick="predict()">Predict</button>
+            </form>
+            <div id="predictionResult"></div>
+            <div id="graphContainer"></div>
+            <button id="downloadBtn">Download Predictions</button>
+        </div>
+    </main>
+
+    <script>async function predict() {
+        var csvFileInput = document.getElementById("csvFileInput");
+        var textInput = document.getElementById("textInput");
+        var predictionResult = document.getElementById("predictionResult");
+        var graphContainer = document.getElementById("graphContainer");
+    
+        if (csvFileInput.files.length > 0) {
+            var formData = new FormData();
+            formData.append("file", csvFileInput.files[0]);
+    
+            try {
+                const response = await fetch("http://localhost:5000/predict", {
+                    method: "POST",
+                    body: formData
+                });
+    
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Server error: ${errorText}`);
+                }
+    
+                if (response.headers.get('X-Graph-Exists') === 'true') {
+                    var graphData = response.headers.get('X-Graph-Data');
+                    displayGraph(graphData);
+                }
+    
+                const blob = await response.blob();
+                var url = URL.createObjectURL(blob);
+                document.getElementById("downloadBtn").style.display = "block";
+                document.getElementById("downloadBtn").onclick = function () {
+                    var a = document.createElement("a");
+                    a.href = url;
+                    a.download = "Predictions.csv";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                };
+            } catch (error) {
+                console.error("Error:", error);
+                alert("Error: " + error.message);
+            }
+    
+        } else if (textInput.value.trim() !== "") {
+            try {
+                const response = await fetch("http://localhost:5000/predict", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ "text": textInput.value.trim() })
+                });
+    
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Server error: ${errorText}`);
+                }
+    
+                const data = await response.json();
+                predictionResult.innerHTML = "Predicted sentiment: " + data.prediction;
+            } catch (error) {
+                console.error("Error:", error);
+                alert("Error: " + error.message);
+            }
+        }
+    }
+    
+    function displayGraph(graphData) {
+        var graphUrl = "data:image/png;base64," + graphData;
+        var img = document.createElement('img');
+        img.src = graphUrl;
+        document.getElementById("graphContainer").appendChild(img);
+    }
+    </script>
+</body>
+</html>
